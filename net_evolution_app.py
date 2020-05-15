@@ -32,6 +32,7 @@ tot = len(nets) - 1
 
 # app layout
 app = dash.Dash(external_stylesheets=[dbc.themes.BOOTSTRAP])
+server = app.server
 
 app.title = 'Network evolution'
 
