@@ -1,0 +1,24 @@
+seed = 0
+famglie 100
+step 150
+
+sim1
+initial_day_restriction = 20
+duration = 28
+strictness 75%
+0 test
+
+sim2
+come sim1, ma decreasing = true
+
+sim3
+no restriction
+2 test per day
+politica random
+efficency 0.6
+
+sim4
+come 3, ma politica degree centrality
+
+sim5 
+come 3, ma efficency 0 -> quarantena solo infetto e familiari
