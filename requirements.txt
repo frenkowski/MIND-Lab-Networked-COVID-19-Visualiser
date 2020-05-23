@@ -1,12 +1,13 @@
 pycairo==1.18.0
 pandas==0.24.2
-ctns==0.2.3
+ctns==0.2
 networkx==2.4
 dash_gif_component==1.0.2
 dash==1.11.0
 dash_html_components==1.0.3
 dash_bootstrap_components==0.9.2
 dash_core_components==1.9.1
+dash_cytoscape==0.0.5
 gunicorn==19.9.0
 matplotlib==3.0.3
 Pillow==7.1.2
