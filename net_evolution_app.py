@@ -65,9 +65,9 @@ layout = nets[0].layout("large")
 
 # app layout
 app = dash.Dash(external_stylesheets=[dbc.themes.BOOTSTRAP])
-server = app.server
-
 app.title = 'Network evolution'
+
+server = app.server
 
 modelParam = ["Susceptible, nodes that are not yet infected",
               "Exposed, represents the people that have been infected, but they are not contagious yet",
@@ -921,4 +921,4 @@ def update_plot(day, new_max):
 
 # run app on local server
 if __name__ == "__main__":
-    app.run_server(debug=True, port=8888)
+    app.run_server()
