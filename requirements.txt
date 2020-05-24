@@ -13,3 +13,4 @@ matplotlib==3.0.3
 Pillow==7.1.2
 plotly==4.7.1
 python_igraph==0.8.2
+requests==2.23.0
