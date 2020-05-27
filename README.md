@@ -1,1 +1,1 @@
-# MIND_Lab_1505
+# MIND-Lab-Networked-COVID-19-Visualizator
