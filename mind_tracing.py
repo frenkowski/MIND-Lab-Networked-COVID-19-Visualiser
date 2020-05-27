@@ -28,6 +28,7 @@ selected_color = 'navy'
 link_colors = {'family_contacts' : 'brown', 'frequent_contacts' : 'red', 'occasional_contacts': 'blue', 'random_contacts': 'green'}
 agent_shapes = { 'S': 'circle', 'E': 'circle', 'I': 'circle', 'R': 'circle', 'D': 'circle' }
 agent_bg = {'S':'#0000ff', 'E':'#ffa300', 'I':'#ff0000', 'D':'#000000', 'R':'#00ff00'}
+agent_order = ['S', 'E', 'I', 'R', 'D']
 
 public_callback = None
 
@@ -53,17 +54,24 @@ def create_network_data(G):
     #precache a nodes map for fast access reading
     for node in G.vs:
         node_dictionary[str(node.index)] = {'agent_status': node["agent_status"]}
-        cy_nodes.append({"data": {"id": node.index}, "type": "node", "agent": node["agent_status"], "classes": node["agent_status"] + " " + agent_shapes[node["agent_status"]] });
+        cy_nodes.append({
+            "data": {"id": node.index},
+            "type": "node", "agent": node["agent_status"],
+            "order": agent_order.index(node["agent_status"]),
+            "classes": node["agent_status"] + " " + agent_shapes[node["agent_status"]]
+        });
     
     for edge in edges:
         source, target = edge.split(" ")
         cy_edges.append({  # Add the Edge Node
             'data': {"id": source+''+target, 'source': source, 'target': target},
-            "type": "edge"#,
+            "type": "edge",
+            "order": 0
+            #,
             #'classes': "mind-edge" #link_colors[category]
         })
 
-    cy_nodes.sort(key=lambda x: x["agent"], reverse=True)
+    cy_nodes.sort(key=lambda x: x["order"], reverse=False)
     return cy_edges + cy_nodes
 
 def check_element(element, id):
@@ -79,6 +87,12 @@ def check_element(element, id):
 #######################################
 
 default_stylesheet = [
+    {
+        "selector": "node",
+        "style": {
+            "border-width": 2
+        }
+    },
     {
         "selector": 'edge',#'.mind-edge',
         'style': {
@@ -164,13 +178,14 @@ lastNode = None
 #######################################
 
 def register_callback(app):
-    @app.callback(Output({"type": 'day', "day": ALL}, 'stylesheet'),
+    @app.callback([Output({"type": 'day', "day": ALL}, 'stylesheet'),
+                  Output({"type": 'day', "day": ALL}, 'layout')],
                   [Input({"type": 'day', "day": ALL}, 'tapNodeData'),
-                   Input('container', 'n_clicks'),
-                   Input({"type": 'day', "day": ALL}, 'elements')])
-    def displayTapNodeData(selected, n_clicks, all_elements):
+                   Input({"type": 'day', "day": ALL}, 'elements'),
+                   Input('dropdown-layout', 'value')
+                   ])
+    def displayTapNodeData(selected, all_elements, layout):
         global lastNode
-        
         user_click = dash.callback_context.triggered[0]['prop_id'].split('.')[0]
         stylesheet = default_stylesheet[:] #default_stylesheet copy for a new css rules set
         
@@ -184,13 +199,17 @@ def register_callback(app):
             "z-index": 5000
         }
         
+        print("ok")
+        
         elements = all_elements[0]
         data = selected
         if(isinstance(selected, list)):
             data = selected[0]
         
         if data is None:
-            return [stylesheet]
+            return [[stylesheet], [{"name": layout}]]
+        
+        print("OK!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
         
         #get all the involved edges    
         edges = [edge for edge in elements if(edge["type"] == "edge" and ( edge["data"]["source"] == data["id"] or edge["data"]["target"] == data["id"]))]
@@ -211,13 +230,15 @@ def register_callback(app):
             })
             
         if(user_click != 'container'):# and ( )):
-            return [stylesheet]
+            return [[stylesheet], [{"name": layout}]]
         elif(lastNode != None and lastNode == data['id']):
             lastNode = None
-            return [default_stylesheet]
+            return [[default_stylesheet], [{"name": layout}]]
+        
+        elements.sort(key=lambda x: x["order"], reverse=False)
         
         lastNode = data['id']
-        return [stylesheet]
+        return [[stylesheet], [{"name": layout}]]
         
     #closure end
     return displayTapNodeData
