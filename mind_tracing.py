@@ -199,7 +199,7 @@ def register_callback(app):
             "z-index": 5000
         }
         
-        print("ok")
+        #print("ok")
         
         elements = all_elements[0]
         data = selected
@@ -209,7 +209,7 @@ def register_callback(app):
         if data is None:
             return [[stylesheet], [{"name": layout}]]
         
-        print("OK!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        #print("OK!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
         
         #get all the involved edges    
         edges = [edge for edge in elements if(edge["type"] == "edge" and ( edge["data"]["source"] == data["id"] or edge["data"]["target"] == data["id"]))]
