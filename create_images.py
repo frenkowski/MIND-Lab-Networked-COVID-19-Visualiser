@@ -86,7 +86,7 @@ def create_dayly_image(nets, day, layout, file_name, save_pdf = False):
     edge_pos = np.asarray([(layout[e.source], layout[e.target]) for e in G.es])
             
             
-    fig, ax = plt.subplots(figsize=(6, 6))
+    fig, ax = plt.subplots(figsize=(5, 5))
     fig.patch.set_visible(False)
     ax.axis('off')
     node_collection = ax.scatter(xy[:, 0], xy[:, 1],
@@ -135,6 +135,101 @@ def create_dayly_image(nets, day, layout, file_name, save_pdf = False):
     plt.close('all')
 
 
+
+
+
+def create_dayly_image_infected(nets, day, layout, file_name, save_pdf = False):
+    # plot option
+    colors = {'S':'#0000ff', 'E':'#ffa300', 'I':'#ff0000', 'D':'#000000', 'R':'#00ff00'}
+    node_size = 65
+    node_shape = 'o'
+    
+    # curretn network
+    G = nets[day]
+    if day > 0:
+        yesterday_infected =  set([x.index for x in nets[day - 1].vs() if x['agent_status'] == 'I'])
+        yesterday_exposed =  set([x.index for x in nets[day - 1].vs() if x['agent_status'] == 'E'])
+    else:
+        yesterday_infected = set()
+        yesterday_exposed = set()
+
+    
+    
+    edge_color = []
+    
+    infected = set([vertex.index for vertex in G.vs if vertex["agent_status"] == 'I'])
+    exposed = set([vertex.index for vertex in G.vs if vertex["agent_status"] == 'E'])
+
+    vertex_color = [colors[G.vs[index]['agent_status']] for index in infected | exposed]
+    
+    new_infected = infected - yesterday_infected
+    new_exposed = exposed - yesterday_exposed
+
+
+    edge_inf = list()
+    for edge in G.es:
+        if (edge.source in new_exposed and edge.target in infected) or (edge.target in new_exposed and edge.source in infected):
+            edge_color.append('red')
+            edge_inf.append(edge)
+        #else:
+        #    edge_color.append('lightgrey')
+    
+       
+    if len(infected | exposed) > 0:
+        xy = np.asarray([layout[v] for v in infected | exposed])
+
+        
+        edge_pos = np.asarray([(layout[e.source], layout[e.target]) for e in edge_inf])
+                
+                
+        fig, ax = plt.subplots(figsize=(5, 5))
+        fig.patch.set_visible(False)
+        ax.axis('off')
+        node_collection = ax.scatter(xy[:, 0], xy[:, 1],
+                                         s=node_size,
+                                         c = vertex_color
+                                         )
+                
+
+        ax.tick_params(axis='both',
+                       which='both',
+                       bottom=False,
+                       left=False,
+                       labelbottom=False,
+                       labelleft=False)
+
+        node_collection.set_zorder(2)
+
+        edge_collection = LineCollection(edge_pos,
+                                         colors = edge_color,
+                                         linewidths=0.35,
+                                         linestyle='solid',
+                                        )
+        
+        xy_blank = np.asarray([layout[v.index] for v in G.vs()])
+        blank_node = ax.scatter(xy_blank [:, 0], xy_blank [:, 1],
+                                         s=node_size,
+                                         c = "white"
+                                         )
+        blank_node.set_zorder(0)
+
+        edge_collection.set_zorder(1)  # edges go behind nodes
+        ax.add_collection(edge_collection)
+
+        ax.set_title('Day: ' + str(day))
+                    
+        #save fig
+        plt.savefig(file_name, dpi = 100, optimize = True)
+        if save_pdf == True:
+            plt.savefig(file_name.split(".")[0] + str('pdf'), dpi = 100, optimize = True)
+        #plt.show()
+        plt.cla()
+        plt.clf()
+        plt.close('all')
+
+
+
+
 # read all pickle file anc create images
 if __name__ == "__main__":
     files = os.listdir('network_dumps/')
@@ -148,6 +243,7 @@ if __name__ == "__main__":
         network_history = {}
         nets = list()
         names = []
+        names2 = []
 
         current_file_path = Path("network_dumps/{}".format(current_pickle_name))
             
@@ -160,6 +256,7 @@ if __name__ == "__main__":
         tot = len(nets)
             
         name = current_pickle_name.split(".")[0]
+        name2 = current_pickle_name.split(".")[0] + str("_inf")
 
                 # create dir
         if not os.path.exists("images"):
@@ -181,26 +278,37 @@ if __name__ == "__main__":
         layout = G.layout("large")
         
         for day in range(0, tot):
-
+            network_history[day] = Counter(nets[day].vs["agent_status"])
+            if network_history[day]['I'] + network_history[day]['E'] == 0:
+                break
             file_name = Path(path_images + str(day) + ".jpeg")
             print("file_name:", file_name)
+
+            file_name2 = Path(path_images + str(day) + "_inf.jpeg")
             
             create_dayly_image(nets, day, layout, file_name, save_pdf = False)
+            create_dayly_image_infected(nets, day, layout, file_name2, save_pdf = False)
+
 
             # add images for the GIF
             names.append(file_name)
-            network_history[day] = Counter(nets[day].vs["agent_status"])
+
+            names2.append(file_name2)
+            
 
             #check early stopping
-            if network_history[day]['I'] + network_history[day]['E'] == 0:
-                break
+            
             
 
         # create GIF
-        images_to_gif(name, names)
+        #images_to_gif(name, names)
+
+        # create GIF
+        images_to_gif(name2, names2)
 
         # save network historys
         with open(Path('assets/network_history_{}.pickle'.format(name)), 'wb') as handle:
             pickle.dump(network_history, handle)
+
 
         
