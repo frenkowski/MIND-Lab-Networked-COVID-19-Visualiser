@@ -10,7 +10,7 @@ from collections import Counter
 import igraph as ig
 from pathlib import Path
 
-save_pdf = True
+save_pdf = False
 
 #import for grid layout
 import mind_tracing as mind_tr
@@ -79,15 +79,6 @@ tab1_content = dbc.Container(
                     html.H1("Network evolution"),
                     html.Hr(),
                     html.Br(),
-                ], md = 12),
-
-
-            ],align="center"),
-
-            dbc.Row(
-            [
-                dbc.Col([
-                
                     dbc.Label("Network type:"),
                     dcc.Dropdown(
                         id="network_id",
@@ -96,25 +87,35 @@ tab1_content = dbc.Container(
                         ],
                         value="Baseline",
                         clearable=False
-                    ),    
-                    
-                    html.Br(),
-                    #dbc.Button("", id ="invisible_button", style= {'display': 'None'}),
-                    
+                    ), 
+                ], md = 12),
+
+
+            ],align="center"),
+
+        
+            html.Br(),
+            dbc.Row(
+            [
+                dbc.Col([
                     dbc.Spinner(html.Div(id="gif_id", children= []), color="primary"),
                     html.Div(style = {'margin-top': '60px'}),
-                ], md = 7),
+                ], md = 6),
 
                 dbc.Col([
-                    html.Br(),
-                    html.P('Nodes in the network fall into one of five exclusive states:'),
-                    html.Ul(id='my-list', children=[html.Li(i) for i in modelParam]),
-                    html.P('We assumed that recoverd individuals do not become susceptible, but enjoy permanent immunity. The total population size was fixed'),
-                    html.Br(),
-                    html.Div(id="stats", children = []),
-                    
-                ], md = 5),
+                    dbc.Spinner(html.Div(id="gif_id_inf", children= []), color="primary"),
+                ], md = 6),
             ]),
+
+            
+            
+            html.Br(),
+            html.P('Nodes in the network fall into one of five exclusive states:'),
+            html.Ul(id='my-list', children=[html.Li(i) for i in modelParam]),
+            html.P('We assumed that recoverd individuals do not become susceptible, but enjoy permanent immunity. The total population size was fixed'),
+            html.Br(),
+            html.Div(id="stats", children = []),
+
         ], style = {'background-color': '#f2f2f2', 'border-radius': '4px', 'box-shadow': '2px 2px 2px lightgrey'}),
 
         
@@ -303,7 +304,7 @@ app.layout = dbc.Container(
     ])
 
 # update  page content with the selected network id
-@app.callback([Output("gif_id","children"), Output("stats", "children"), Output("day_sim", "max"), Output("day_sim", "marks")], [Input("network_id", "value")], [State("day_sim", "value")])
+@app.callback([Output("gif_id","children"), Output("gif_id_inf","children"), Output("stats", "children"), Output("day_sim", "max"), Output("day_sim", "marks")], [Input("network_id", "value")], [State("day_sim", "value")])
 def update_page_content(network_id, day_sim_current_value):
     """
     Update the page content when a new network is selected. This callback update also the slider max value with the new simulation duration.
@@ -358,12 +359,25 @@ def update_page_content(network_id, day_sim_current_value):
     encoded_sim_png = base64.b64encode(open(sim_png, 'rb').read())
     encoded_sim_gif = base64.b64encode(open(sim_gif, 'rb').read())
 
+
+
     GIF = gif.GifPlayer(
             gif= 'data:image/gif;base64,{}'.format(encoded_sim_gif.decode()),
             still= 'data:image/png;base64,{}'.format(encoded_sim_png.decode()),
             autoplay = True,
           )
+
+    sim_png = Path('assets/{}_inf_simulation.png'.format(file_name))
+    sim_gif = Path('assets/{}_inf_simulation.gif'.format(file_name))
+
+    encoded_sim_png = base64.b64encode(open(sim_png, 'rb').read())
+    encoded_sim_gif = base64.b64encode(open(sim_gif, 'rb').read())
     
+    GIF_inf = gif.GifPlayer(
+            gif= 'data:image/gif;base64,{}'.format(encoded_sim_gif.decode()),
+            still= 'data:image/png;base64,{}'.format(encoded_sim_png.decode()),
+            autoplay = True,
+          )
     
     # slider components
     marks = {
@@ -394,7 +408,7 @@ def update_page_content(network_id, day_sim_current_value):
                     ])
     
 
-    return [GIF, stats_current_net, tot, marks]
+    return [GIF, GIF_inf, stats_current_net, tot, marks]
     
 
 

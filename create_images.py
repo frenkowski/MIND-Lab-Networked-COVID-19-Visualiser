@@ -32,11 +32,96 @@ def images_to_gif(name, images):
     for image in images:
         imagesList.append(Image.open(image))
 
-    if not os.path.exists("assets"):
-            os.mkdir("assets")
 
     imagesList[0].save(Path('assets/{}_simulation.png'.format(name)))
     imagesList[0].save(Path('assets/{}_simulation.gif'.format(name)), save_all=True, append_images=imagesList[1:], optimize=True, duration=400, loop=0)
+
+
+
+def create_graph__infected_history(nets, layout, file_name):
+    
+    node_size = 65
+    node_shape = 'o'
+    
+    image_nodes = set()
+    image_edges = set()
+
+    for day in range(len(nets)):
+        # curretn network
+        G = nets[day]
+        if day > 0:
+            yesterday_infected =  set([x.index for x in nets[day - 1].vs() if x['agent_status'] == 'I'])
+            yesterday_exposed =  set([x.index for x in nets[day - 1].vs() if x['agent_status'] == 'E'])
+        else:
+            yesterday_infected = set()
+            yesterday_exposed = set()
+
+    
+    
+    
+        infected = set([vertex.index for vertex in G.vs if vertex["agent_status"] == 'I'])
+        exposed = set([vertex.index for vertex in G.vs if vertex["agent_status"] == 'E'])
+
+        
+        new_infected = infected - yesterday_infected
+        new_exposed = exposed - yesterday_exposed
+
+        image_nodes = image_nodes | new_exposed
+
+        for edge in G.es:
+            if (edge.source in new_exposed and edge.target in infected) or (edge.target in new_exposed and edge.source in infected):
+                image_edges.add(edge)            
+    
+
+       
+    
+    xy = np.asarray([layout[v] for v in image_nodes])
+
+        
+    edge_pos = np.asarray([(layout[e.source], layout[e.target]) for e in image_edges])
+                
+                
+    fig, ax = plt.subplots(figsize=(5, 5))
+    fig.patch.set_visible(False)
+    ax.axis('off')
+    node_collection = ax.scatter(xy[:, 0], xy[:, 1],
+                                     s=node_size,
+                                     c = "blue"
+                                     )
+            
+
+    ax.tick_params(axis='both',
+                   which='both',
+                   bottom=False,
+                   left=False,
+                   labelbottom=False,
+                   labelleft=False)
+
+    node_collection.set_zorder(2)
+
+    edge_collection = LineCollection(edge_pos,
+                                     linewidths = 0.35,
+                                     linestyle = 'solid',
+                                     colors = 'gray'
+                                    )
+    
+
+    edge_collection.set_zorder(1)  # edges go behind nodes
+    ax.add_collection(edge_collection)
+
+    ax.set_title('Contagion network')
+                
+    #save fig
+    #plt.savefig(, dpi = 100, optimize = True)
+    
+    plt.savefig(Path('assets/{}_contagion_network.pdf'.format(name)), dpi = 100, optimize = True)
+    
+    #plt.show()
+    plt.cla()
+    plt.clf()
+    plt.close('all')
+
+
 
 
 def create_dayly_image(nets, day, layout, file_name, save_pdf = False):
@@ -257,10 +342,14 @@ if __name__ == "__main__":
             
         name = current_pickle_name.split(".")[0]
         name2 = current_pickle_name.split(".")[0] + str("_inf")
+        name3 = current_pickle_name.split(".")[0]
 
                 # create dir
         if not os.path.exists("images"):
             os.mkdir("images")
+
+        if not os.path.exists("assets"):
+            os.mkdir("assets")
 
         # remove old images
         path_images = str(Path("images/{}_sim".format(name)))
@@ -276,10 +365,14 @@ if __name__ == "__main__":
 
         #fix the vertices position
         layout = G.layout("large")
+
+
+        create_graph__infected_history(nets, layout, name3)
         
         for day in range(0, tot):
             network_history[day] = Counter(nets[day].vs["agent_status"])
             if network_history[day]['I'] + network_history[day]['E'] == 0:
+                del network_history[day]
                 break
             file_name = Path(path_images + str(day) + ".jpeg")
             print("file_name:", file_name)
@@ -301,7 +394,7 @@ if __name__ == "__main__":
             
 
         # create GIF
-        #images_to_gif(name, names)
+        images_to_gif(name, names)
 
         # create GIF
         images_to_gif(name2, names2)
