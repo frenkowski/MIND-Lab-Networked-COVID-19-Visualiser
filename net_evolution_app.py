@@ -22,7 +22,7 @@ clickForward = 0
 
 # available simulation to visualize
 networks_dictionary = {}
-networks_dictionary['Baseline'] = "sim_no_restr"
+networks_dictionary['Baseline'] = "sim_dump0"
 networks_dictionary['sim1'] = 'sim_dump1'
 networks_dictionary['sim2'] = "sim_dump2"
 networks_dictionary['sim3'] = "sim_dump3"
@@ -620,7 +620,9 @@ def update_graphics(day, max_slider):
                         x=0.005, y=-0.002 ) ],
                     xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                     yaxis=dict(showgrid=False, zeroline=False, showticklabels=False)))
+    config = {'displaylogo': False}
 
+    #fig.show(config=config)
     
     # get current and prev images
     if day > 0:
