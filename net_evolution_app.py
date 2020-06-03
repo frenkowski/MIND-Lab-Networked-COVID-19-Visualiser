@@ -13,7 +13,7 @@ from pathlib import Path
 save_pdf = False
 
 #import for grid layout
-import mind_tracing as mind_tr
+import net_layout
 
 
 # gloabal variables for handle click forward and back button
@@ -172,10 +172,10 @@ tab1_content = dbc.Container(
                     html.Div(style = {'margin-top': '10px', 'border-top': '1px solid silver'}),
                     html.Br(),
                     html.H3("Grid layout"),
-                    mind_tr.NamedDropdown(
+                    net_layout.NamedDropdown(
                         name = 'Layout',
                         id = 'dropdown-layout',
-                        options = mind_tr.DropdownOptionsList(
+                        options = net_layout.DropdownOptionsList(
                             #'random',
                             'grid',
                             #'circle',
@@ -187,7 +187,7 @@ tab1_content = dbc.Container(
                         clearable = False
                     ),
                     html.Div(id="cyto-container", children = [
-                        mind_tr.Get_Grid_Div(app, "cyto_1", mind_tr.create_network_data(nets[0])) 
+                        net_layout.Get_Grid_Div(app, "cyto_1", net_layout.create_network_data(nets[0])) 
                     ])
                     #20200518 - Marco End
                 ], md=12),
@@ -796,7 +796,7 @@ def update_graphics(day, max_slider):
         currentFig = go.Figure(current)
         currentFig.write_image("current.pdf")
 
-    return [fig, [], src_image1, src_image2, prev, current, mind_tr.Get_Grid_Div(app, "cyto_" + str(day), mind_tr.create_network_data(G))] #20200518 - Marco
+    return [fig, [], src_image1, src_image2, prev, current, net_layout.Get_Grid_Div(app, "cyto_" + str(day) + "_" + current_nets.strip(), net_layout.create_network_data(G))] #20200518 - Marco
 
 
 #------callback tab2 -------------
