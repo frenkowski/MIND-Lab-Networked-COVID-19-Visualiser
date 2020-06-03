@@ -11,7 +11,7 @@ import igraph as ig
 from pathlib import Path
 
 #import for grid layout
-import net_layout
+import src.net_layout
 
 def read_available_dumps():
     files = os.listdir('network_dumps/')
