@@ -317,7 +317,7 @@ def create_dayly_image_infected(nets, day, layout, file_name, save_pdf = False):
 
 # read all pickle file anc create images
 if __name__ == "__main__":
-    files = os.listdir('network_dumps/')
+    
         # create dir
     if not os.path.exists("images"):
         os.mkdir("images")
@@ -346,6 +346,7 @@ if __name__ == "__main__":
     for image in toRemove:
         os.remove(image)
 
+    files = os.listdir('network_dumps/')
     all_pickles_names = [i for i in files if i.endswith('.pickle')]
 
     
