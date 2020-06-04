@@ -8,6 +8,7 @@ from matplotlib.collections import LineCollection
 from PIL import Image
 from pathlib import Path
 from collections import Counter
+from tqdm import tqdm
 
 
 
@@ -318,7 +319,7 @@ def create_dayly_image_infected(nets, day, layout, file_name, save_pdf = False):
 # read all pickle file anc create images
 if __name__ == "__main__":
     
-        # create dir
+    # create dir
     if not os.path.exists("images"):
         os.mkdir("images")
 
@@ -359,11 +360,15 @@ if __name__ == "__main__":
         names2 = []
 
         current_file_path = Path("network_dumps/{}".format(current_pickle_name))
-            
-        print("current file", current_file_path)
+
+        print("\nProcessing file:", current_file_path)
         with open(current_file_path, "rb") as f:
             dump = pickle.load(f)
-            nets = dump['nets']
+            try:
+                nets = dump['nets']
+            except:
+                print("Can not create images without full dump!")
+                continue
         
         # the total number of simulation days
         tot = len(nets)
@@ -373,7 +378,6 @@ if __name__ == "__main__":
         name3 = current_pickle_name.split(".")[0]
 
         path_images = str(Path("images/{}_sim".format(name)))
-        print("path_images: ", path_images)
 
         # load first network and calculate the position of vertices 
         G = nets[0]
@@ -383,48 +387,48 @@ if __name__ == "__main__":
 
 
         create_graph__infected_history(nets, layout, name3)
+        with tqdm(total= tot) as pbar:
+            for day in range(0, tot):
+                network_history[day] = Counter(nets[day].vs["agent_status"])
+                if network_history[day]['I'] + network_history[day]['E'] == 0:
+                    del network_history[day]
+                    pbar.update(tot - day )
+                    break
+                
+                
+                file_name = Path(path_images + str(day) + ".jpeg")
+
+                file_name2 = Path(path_images + str(day) + "_inf.jpeg")
+                
+                create_dayly_image(nets, day, layout, file_name, save_pdf = False)
+                create_dayly_image_infected(nets, day, layout, file_name2, save_pdf = False)
+
+
+                # add images for the GIF
+                names.append(file_name)
+
+                names2.append(file_name2)
+                pbar.update(1)
+                
+
+            
+                
+                
+
+            # create GIF
+            images_to_gif(name, names)
+
+            # create GIF
+            images_to_gif(name2, names2)
+
+            # delete images not useful
+            for image in names2:
+                os.remove(image)
+
+            # save network historys
+            with open(Path('assets/network_history_{}.pickle'.format(name)), 'wb') as handle:
+                pickle.dump(network_history, handle)
         
-        for day in range(0, tot):
-            network_history[day] = Counter(nets[day].vs["agent_status"])
-            if network_history[day]['I'] + network_history[day]['E'] == 0:
-                del network_history[day]
-                break
-            
-            
-            file_name = Path(path_images + str(day) + ".jpeg")
-            print("file_name:", file_name)
-
-            
-
-            file_name2 = Path(path_images + str(day) + "_inf.jpeg")
-            
-            create_dayly_image(nets, day, layout, file_name, save_pdf = False)
-            create_dayly_image_infected(nets, day, layout, file_name2, save_pdf = False)
-
-
-            # add images for the GIF
-            names.append(file_name)
-
-            names2.append(file_name2)
-            
-
-            #check early stopping
-            
-            
-
-        # create GIF
-        images_to_gif(name, names)
-
-        # create GIF
-        images_to_gif(name2, names2)
-
-        # delete images not useful
-        for image in names2:
-            os.remove(image)
-
-        # save network historys
-        with open(Path('assets/network_history_{}.pickle'.format(name)), 'wb') as handle:
-            pickle.dump(network_history, handle)
-
+        #pbar.close()
 
         

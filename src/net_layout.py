@@ -38,41 +38,44 @@ public_callback = None
 
 cy_edges = []
 def create_network_data(G):
-    global cy_edges
-    links_types = []
-    lines = ""
+    if G != "Error":
+        global cy_edges
+        links_types = []
+        lines = ""
 
-    nodes = set()
-    cy_edges, cy_nodes = [], []
+        nodes = set()
+        cy_edges, cy_nodes = [], []
 
-    for edge in G.es:
-        lines = lines + str(edge.source) + " " + str(edge.target) + "\n"
-    lines = lines[:-1]
-    edges = lines.split("\n")
+        for edge in G.es:
+            lines = lines + str(edge.source) + " " + str(edge.target) + "\n"
+        lines = lines[:-1]
+        edges = lines.split("\n")
 
-    node_dictionary = {}
-    #precache a nodes map for fast access reading
-    for node in G.vs:
-        node_dictionary[str(node.index)] = {'agent_status': node["agent_status"]}
-        cy_nodes.append({
-            "data": {"id": node.index},
-            "type": "node", "agent": node["agent_status"],
-            "order": agent_order.index(node["agent_status"]),
-            "classes": node["agent_status"] + " " + agent_shapes[node["agent_status"]]
-        });
-    
-    for edge in edges:
-        source, target = edge.split(" ")
-        cy_edges.append({  # Add the Edge Node
-            'data': {"id": source+''+target, 'source': source, 'target': target},
-            "type": "edge",
-            "order": 0
-            #,
-            #'classes': "mind-edge" #link_colors[category]
-        })
+        node_dictionary = {}
+        #precache a nodes map for fast access reading
+        for node in G.vs:
+            node_dictionary[str(node.index)] = {'agent_status': node["agent_status"]}
+            cy_nodes.append({
+                "data": {"id": node.index},
+                "type": "node", "agent": node["agent_status"],
+                "order": agent_order.index(node["agent_status"]),
+                "classes": node["agent_status"] + " " + agent_shapes[node["agent_status"]]
+            });
+        
+        for edge in edges:
+            source, target = edge.split(" ")
+            cy_edges.append({  # Add the Edge Node
+                'data': {"id": source+''+target, 'source': source, 'target': target},
+                "type": "edge",
+                "order": 0
+                #,
+                #'classes': "mind-edge" #link_colors[category]
+            })
 
-    cy_nodes.sort(key=lambda x: x["order"], reverse=False)
-    return cy_edges + cy_nodes
+        cy_nodes.sort(key=lambda x: x["order"], reverse=False)
+        return cy_edges + cy_nodes
+    else:
+        return
 
 def check_element(element, id):
     if(element["type"] == "node" and element["data"]["id"] == id):

@@ -11,57 +11,60 @@ import igraph as ig
 from pathlib import Path
 
 #import for grid layout
-import src.net_layout
+import src.net_layout as net_layout
 
 def read_available_dumps():
     files = os.listdir('network_dumps/')
-    all_pickles_names = [i.split(".")[0] for i in files if i.endswith('.pickle')]
-    
+    all_pickles_names = [i for i in files if i.endswith('.pickle')]
+    first_dump = True
+    current_nets = ""
     networks_dictionary = {}
-    for file in all_pickles_names:    
-        networks_dictionary[file] = file
-            
+    error_read = []
+    for file in all_pickles_names:
+        current_file_path = Path("network_dumps/{}".format(file))
+        
+        with open(current_file_path, "rb") as f:
+            try:
+                dump = pickle.load(f)
+                nets = dump['nets']
+                name = file.split(".")[0]
+
+                # check GIF
+                test_sim_png = Path('assets/{}_simulation.png'.format(name))
+                test_sim_gif = Path('assets/{}_simulation.gif'.format(name))
+
+                #check
+                test_image = Path('images/{}_sim0.jpeg'.format(name))
+
+                if test_sim_png.exists() and test_sim_gif .exists() and test_image.exists():
+                    networks_dictionary[name] = name
+                    if first_dump:
+                        current_nets = name
+                        first_dump = False
+                else:
+                    
+                    error_read.append(file)
+                    continue
+                    
+            except:
+                error_read.append(file)
+                continue
+                
     # net to load at first launch
-    current_nets = all_pickles_names[0]
-    
-    return networks_dictionary, current_nets
+    return networks_dictionary, current_nets, error_read
 
 
 
-
-save_pdf = False
-
-# gloabal variables for handle click forward and back button
 clickBack = 0
 clickForward = 0 
-
-# available simulation to visualize
-networks_dictionary, current_nets = read_available_dumps()
-
-
-image_filename1 = Path('images/{}_sim0.jpeg'.format(networks_dictionary[current_nets]))
-image_filename2 = Path('images/{}_sim1.jpeg'.format(networks_dictionary[current_nets]))
-encoded_image1 = base64.b64encode(open(image_filename1, 'rb').read())
-encoded_image2 = base64.b64encode(open(image_filename2, 'rb').read())
-
-
-fp_in = Path("network_dumps/{}.pickle".format(networks_dictionary[current_nets]))
-nets = list()
-with open(fp_in, "rb") as f:
-    dump = pickle.load(f)
-    nets = dump['nets']
-
-
-history_path = "assets/network_history_{}.pickle".format(networks_dictionary[current_nets])
-
-with open(history_path, "rb") as f:
-    current_network_history = pickle.load(f)
-
-tot = len(current_network_history) - 1
-
-# fix position of nodes for plotting
-layout = nets[0].layout("large")
-
+save_pdf = False
+tot = 0
+current_nets = ""
+networks_dictionary = {}
+nets = [] 
+layout = [] 
+current_network_history = {}
+grid = []
 
 # app layout
 app = dash.Dash(external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -69,6 +72,8 @@ app = dash.Dash(external_stylesheets=[dbc.themes.BOOTSTRAP])
 app.title = 'Network evolution'
 
 server = app.server
+
+
 
 modelParam = ["Susceptible, nodes that are not yet infected", 
               "Exposed, represents the people that have been infected, but they are not contagious yet", 
@@ -78,7 +83,7 @@ modelParam = ["Susceptible, nodes that are not yet infected",
 
 tab1_content = dbc.Container(
         [
-            html.Div(style = {'margin-top': '30px'}),
+        html.Div(style = {'margin-top': '30px'}),
         dbc.Container(id ="div_evolution", 
         children = [
             
@@ -91,16 +96,24 @@ tab1_content = dbc.Container(
                     html.Ul(id='my-list', children=[html.Li(i) for i in modelParam]),
                     html.P('We assumed that recoverd individuals do not become susceptible, but enjoy permanent immunity. The total population size was fixed'),
                     html.Br(),
+                    html.Div(id ='read_alert', children = []),
+                    html.Div(id ='noFiles', children = []),
                     dbc.Label("Network type:"),
-                    dcc.Dropdown(
-                        id="network_id",
-                        options=[
-                            {"label": col, "value": col} for col in networks_dictionary.keys()
-                        ],
-                        value= current_nets,
-                        clearable=False
-                    ), 
+                    dbc.Row([dbc.Col([
+                                dcc.Dropdown(
+                                id="network_id",
+                                options=[
+                                    {"label": col, "value": col} for col in networks_dictionary.keys()
+                                ],
+                                value= current_nets,
+                                clearable=False
+                            ),]), 
+                            dbc.Col([dbc.Button("Refresh", id= "refresh")]),
+                            ]),
+                            
                 ], md = 12),
+                html.Br(),
+                
 
 
             ],align="center"),
@@ -173,7 +186,7 @@ tab1_content = dbc.Container(
                     dcc.Graph(id="graph_sim", style= {'display': 'block'}),
                     html.Div(style = {'margin-top': '60px'}),
                     
-                    #20200518 - Marco Start
+                    
                     html.Div(style = {'margin-top': '10px', 'border-top': '1px solid silver'}),
                     html.Br(),
                     html.H3("Grid layout"),
@@ -191,10 +204,9 @@ tab1_content = dbc.Container(
                         value = 'grid',
                         clearable = False
                     ),
-                    html.Div(id="cyto-container", children = [
-                        net_layout.Get_Grid_Div(app, "cyto_1", net_layout.create_network_data(nets[0])) 
-                    ])
-                    #20200518 - Marco End
+                    html.Div(id="cyto-container", 
+                    children = grid)
+                    
                 ], md=12),
             
                 ]),
@@ -245,8 +257,7 @@ tab1_content = dbc.Container(
                     html.Br(),
                     html.H3("Evolution day by day"),
                     html.Br(),
-                    html.P('Here, you can see the evolution of the net dynamically. You can choose the day throught the slidebar and visualize the relative plot of the situation. You can see also the relative graph. The aim of the lineplot is to show the long term evolution of the network in terms of SEIRD parameters:'),
-                    html.Ul(children=[html.Li(i) for i in modelParam]),
+                    html.P('Here, you can see the evolution of the net dynamically. You can choose the day throught the slidebar and visualize the relative plot of the situation. You can see also the relative graph. The aim of the lineplot is to show the long term evolution of the network in terms of SEIRD classes'),
                 ], md=12),
 
                 ],
@@ -384,93 +395,96 @@ def update_page_content(network_id, day_sim_current_value):
     Max value e marker style of slider in according to new network loaded.
 
     """
+    # gloabal variables for handle click forward and back button
 
     global current_nets, networks_dictionary, nets, tot, layout, current_network_history
     
-    #reload curent network
-    file_name = networks_dictionary[network_id]
-    
-    if current_nets != network_id:
-        current_nets = network_id
+    if current_nets != "":
+        #reload curent network
+        file_name = networks_dictionary[network_id]
+        if current_nets != network_id:
+            current_nets = network_id
+            
+            new_path = Path("network_dumps/{}.pickle".format(file_name))
+            nets = list()
+            with open(new_path, "rb") as f:
+                dump = pickle.load(f)
+                nets = dump['nets']
+            
+
+            history_path = "assets/network_history_{}.pickle".format(networks_dictionary[current_nets])
+
+            with open(history_path, "rb") as f:
+                current_network_history = pickle.load(f)
+
+            tot = len(current_network_history) - 1
+
+            # fixed position of node
+            layout = nets[0].layout("large")
+            clickBack = 0
+            clickForward = 0
+
         
-        new_path = Path("network_dumps/{}.pickle".format(file_name))
-        nets = list()
-        with open(new_path, "rb") as f:
-            dump = pickle.load(f)
-            nets = dump['nets']
+
+        # GIF load
+        sim_png = Path('assets/{}_simulation.png'.format(file_name))
+        sim_gif = Path('assets/{}_simulation.gif'.format(file_name))
+
+        encoded_sim_png = base64.b64encode(open(sim_png, 'rb').read())
+        encoded_sim_gif = base64.b64encode(open(sim_gif, 'rb').read())
+
+
+
+        GIF = gif.GifPlayer(
+                gif= 'data:image/gif;base64,{}'.format(encoded_sim_gif.decode()),
+                still= 'data:image/png;base64,{}'.format(encoded_sim_png.decode()),
+                autoplay = True,
+              )
+
+        sim_png = Path('assets/{}_inf_simulation.png'.format(file_name))
+        sim_gif = Path('assets/{}_inf_simulation.gif'.format(file_name))
+
+        encoded_sim_png = base64.b64encode(open(sim_png, 'rb').read())
+        encoded_sim_gif = base64.b64encode(open(sim_gif, 'rb').read())
+        
+        GIF_inf = gif.GifPlayer(
+                gif= 'data:image/gif;base64,{}'.format(encoded_sim_gif.decode()),
+                still= 'data:image/png;base64,{}'.format(encoded_sim_png.decode()),
+                autoplay = True,
+              )
+        
+        # slider components
+        marks = {
+                0: {'label': '0'},
+                tot: {'label': str(tot)}
+        }
+
+        # stats div
+        tot_infected = 0
+        number_of_nodes = len(nets[0].vs)
+        tot_infected = number_of_nodes - current_network_history[tot]['S']
+
+        contacts_sum = 0
+        for day in range(len(current_network_history)):
+            degree = nets[day].degree()
+            contacts_sum += sum(degree)/2   #edge are undirected then necessary /2
+        
+        avg_contacts = int( contacts_sum / (number_of_nodes * tot))
+
+
+        stats_current_net =  html.Div(children = [
+                        html.H3("Simulation summary"),
+                        html.P('Number of nodes: ' + str(number_of_nodes)),
+                        html.P('Average dayly number of contacts: ' + str(avg_contacts)),
+                        html.P('Simulation duration: ' + str(tot)),
+                        html.P('Total infected people: ' + str(tot_infected)),
+                        html.P('Total dead people: ' + str(current_network_history[tot]['D']))
+                        ])
         
 
-        history_path = "assets/network_history_{}.pickle".format(networks_dictionary[current_nets])
-
-        with open(history_path, "rb") as f:
-            current_network_history = pickle.load(f)
-
-        tot = len(current_network_history) - 1
-
-        # fixed position of node
-        layout = nets[0].layout("large")
-        clickBack = 0
-        clickForward = 0
-
-    
-
-    # GIF load
-    sim_png = Path('assets/{}_simulation.png'.format(file_name))
-    sim_gif = Path('assets/{}_simulation.gif'.format(file_name))
-
-    encoded_sim_png = base64.b64encode(open(sim_png, 'rb').read())
-    encoded_sim_gif = base64.b64encode(open(sim_gif, 'rb').read())
-
-
-
-    GIF = gif.GifPlayer(
-            gif= 'data:image/gif;base64,{}'.format(encoded_sim_gif.decode()),
-            still= 'data:image/png;base64,{}'.format(encoded_sim_png.decode()),
-            autoplay = True,
-          )
-
-    sim_png = Path('assets/{}_inf_simulation.png'.format(file_name))
-    sim_gif = Path('assets/{}_inf_simulation.gif'.format(file_name))
-
-    encoded_sim_png = base64.b64encode(open(sim_png, 'rb').read())
-    encoded_sim_gif = base64.b64encode(open(sim_gif, 'rb').read())
-    
-    GIF_inf = gif.GifPlayer(
-            gif= 'data:image/gif;base64,{}'.format(encoded_sim_gif.decode()),
-            still= 'data:image/png;base64,{}'.format(encoded_sim_png.decode()),
-            autoplay = True,
-          )
-    
-    # slider components
-    marks = {
-            0: {'label': '0'},
-            tot: {'label': str(tot)}
-    }
-
-    # stats div
-    tot_infected = 0
-    number_of_nodes = len(nets[0].vs)
-    tot_infected = number_of_nodes - current_network_history[tot]['S']
-
-    contacts_sum = 0
-    for day in range(len(current_network_history)):
-        degree = nets[day].degree()
-        contacts_sum += sum(degree)/2   #edge are undirected then necessary /2
-    
-    avg_contacts = int( contacts_sum / (number_of_nodes * tot))
-
-
-    stats_current_net =  html.Div(children = [
-                    html.H3("Simulation summary"),
-                    html.P('Number of nodes: ' + str(number_of_nodes)),
-                    html.P('Average dayly number of contacts: ' + str(avg_contacts)),
-                    html.P('Simulation duration: ' + str(tot)),
-                    html.P('Total infected people: ' + str(tot_infected)),
-                    html.P('Total dead people: ' + str(current_network_history[tot]['D']))
-                    ])
-    
-
-    return [GIF, GIF_inf, stats_current_net, tot, marks]
+        return [GIF, GIF_inf, stats_current_net, tot, marks]
+    else:
+        return [[], [], [], 0, {}]
     
 
 
@@ -499,25 +513,72 @@ def enable__disable_buttons(sim_day, network_id):
 
     """
     
+    if current_nets != "":
+        current_file_name = networks_dictionary[network_id]
+        
+        loc_history_path = "assets/network_history_{}.pickle".format(networks_dictionary[network_id])
 
-    current_file_name = networks_dictionary[network_id]
-    
-    loc_history_path = "assets/network_history_{}.pickle".format(networks_dictionary[network_id])
+        with open(loc_history_path, "rb") as f:
+            loc_current_network_history = pickle.load(f)
 
-    with open(loc_history_path, "rb") as f:
-        loc_current_network_history = pickle.load(f)
+        loc_tot = len(loc_current_network_history) - 1
 
-    loc_tot = len(loc_current_network_history) - 1
-
-    if sim_day == 0:
-        return [True, False]
-    elif sim_day >= loc_tot:
-        return [False, True]
+        if sim_day == 0:
+            return [True, False]
+        elif sim_day >= loc_tot:
+            return [False, True]
+        else:
+            return [False, False]
     else:
         return [False, False]
 
+@app.callback([Output("network_id", "options"), Output("network_id", "value"),Output("read_alert", "children"), Output("noFiles", "children"), Output("slider_day_sim_trend", "value")], [Input("refresh", "n_clicks")])
+def refresh_button_click(n_clicks):
+
+    
+    global current_nets, networks_dictionary, layout, tot, current_network_history, nets
+    
+    networks_dictionary, current_nets, errors = read_available_dumps()
+
+    if len(errors) > 0:
+        read_alert = dbc.Alert("Can't read this files: " + str(errors) + "\n use only full dump type for this tab" ,  color="danger",  duration=6000)
+    else:
+        read_alert = dbc.Alert("Succesfully read all files" , id = 'alert_id', color="success",  duration=6000)
+            
+
+    if current_nets != "":
+        #image_filename1 = Path('images/{}_sim0.jpeg'.format(networks_dictionary[current_nets]))
+        #image_filename2 = Path('images/{}_sim1.jpeg'.format(networks_dictionary[current_nets]))
+        #encoded_image1 = base64.b64encode(open(image_filename1, 'rb').read())
+        #encoded_image2 = base64.b64encode(open(image_filename2, 'rb').read())
 
 
+        fp_in = Path("network_dumps/{}.pickle".format(networks_dictionary[current_nets]))
+        nets = list()
+        with open(fp_in, "rb") as f:
+            dump = pickle.load(f)
+            nets = dump['nets']
+
+
+        history_path = "assets/network_history_{}.pickle".format(networks_dictionary[current_nets])
+
+        with open(history_path, "rb") as f:
+            current_network_history = pickle.load(f)
+
+        tot = len(current_network_history) - 1
+
+        # fix position of nodes for plotting
+        layout = nets[0].layout("large")
+        grid = net_layout.Get_Grid_Div(app, "cyto_1", net_layout.create_network_data(nets[0]))
+        bigErrorAlert = []
+
+    else:
+        tot = 0
+        grid = []
+        bigErrorAlert = dbc.Alert("No simulation accessible, put the full dumps in the \"network_dumps\" folder and use the create_images module then run this app",  color="danger")
+
+    new_options = [{"label": col, "value": col} for col in networks_dictionary.keys()]
+    return [new_options, current_nets,read_alert, bigErrorAlert, tot]
 
 
 @app.callback(Output("day_sim", "value"), [Input("back", "n_clicks"), Input("forward", "n_clicks")], [State("day_sim", "value")])
@@ -545,15 +606,17 @@ def update_slider(currentClickBack, currentClickForward,  day_sim):
     """
 
     global clickBack, clickForward, tot
-
-    if day_sim >= tot:
-        day_sim = tot
-    if currentClickBack is not None and currentClickBack > clickBack:
-        clickBack += 1
-        return day_sim -1
-    elif currentClickForward is not None:
-        clickForward+=1
-        return day_sim +1
+    if current_nets != "":
+        if day_sim >= tot:
+            day_sim = tot
+        if currentClickBack is not None and currentClickBack > clickBack:
+            clickBack += 1
+            return day_sim -1
+        elif currentClickForward is not None:
+            clickForward+=1
+            return day_sim +1
+        else:
+            return 1
     else:
         return 1
 
@@ -595,303 +658,307 @@ def update_graphics(day, network_id):
     #global layout, tot, current_nets, 
     global networks_dictionary
 
-    
-    # read network to plot
-    current_file_name = networks_dictionary[network_id]
-    new_path = Path("network_dumps/{}.pickle".format(current_file_name))
-    loc_nets = list()
-    with open(new_path, "rb") as f:
-        loc_dump = pickle.load(f)
-        loc_nets = loc_dump['nets']
-        
-
-    loc_history_path = "assets/network_history_{}.pickle".format(networks_dictionary[network_id])
-
-    with open(loc_history_path, "rb") as f:
-        loc_current_network_history = pickle.load(f)
-
-    loc_tot = len(loc_current_network_history) - 1
-
-        # fixed position of node
-    loc_layout = loc_nets[0].layout("large")
-
-    
-    
-    # check extra day in slider
-    if day >= tot:
-        day = tot
-    G = loc_nets[day]
-
-
-
-    # plotly graph 
-    colors = {'S':'#0000ff', 'E':'#ffa300', 'I':'#ff0000', 'D':'#000000', 'R':'#00ff00'}
-    vertex_color = [colors[status] for status in G.vs["agent_status"]]
-    
-    node_text = []
-    node_trace_x = []
-    node_trace_y = []
-
-    infected = [vertex.index for vertex in G.vs if vertex["agent_status"] == 'I']
-
-    #add a pos attribute to each node
-    for node in G.vs:
-        node_text.append('State: ' + str(node['agent_status']))
-        x, y = layout[node.index]
-        node_trace_x += tuple([x])
-        node_trace_y += tuple([y])
-
-    edge_trace_x = []
-    edge_trace_y = []
-    edge_trace_x_red = []
-    edge_trace_y_red = []
-
-
-    for edge in G.es:
-        x0, y0 = layout[edge.source]
-        x1, y1 = layout[edge.target]
-
-        if edge.source in infected or edge.target in infected:
-            edge_trace_x_red += tuple([x0, x1, None])
-            edge_trace_y_red += tuple([y0, y1, None])
-        else:
-            edge_trace_x += tuple([x0, x1, None])
-            edge_trace_y += tuple([y0, y1, None])
+    if current_nets != "":
+        # read network to plot
+        current_file_name = networks_dictionary[network_id]
+        new_path = Path("network_dumps/{}.pickle".format(current_file_name))
+        loc_nets = list()
+        with open(new_path, "rb") as f:
+            loc_dump = pickle.load(f)
+            loc_nets = loc_dump['nets']
             
 
+        loc_history_path = "assets/network_history_{}.pickle".format(networks_dictionary[network_id])
 
-    edge_trace_gray = go.Scatter(
-        x=edge_trace_x,
-        y=edge_trace_y,
-        line=dict(width=0.3,color='#888'),
-        hoverinfo='none',
-        mode='lines')
+        with open(loc_history_path, "rb") as f:
+            loc_current_network_history = pickle.load(f)
 
-    edge_trace_red = go.Scatter(
-        x=edge_trace_x_red,
-        y=edge_trace_y_red,
-        line=dict(width=0.7,color='#ff0000'),
-        hoverinfo='none',
-        mode='lines')
+        loc_tot = len(loc_current_network_history) - 1
 
+            # fixed position of node
+        loc_layout = loc_nets[0].layout("large")
 
-    node_trace = go.Scatter(
-        x= node_trace_x,
-        y= node_trace_y,
-        text= node_text,
-        mode='markers',
-        hoverinfo='text',
-        marker=dict(
-            #showscale=True,
-            # colorscale options
-            #'Greys' | 'YlGnBu' | 'Greens' | 'YlOrRd' | 'Bluered' | 'RdBu' |
-            #'Reds' | 'Blues' | 'Picnic' | 'Rainbow' | 'Portland' | 'Jet' |
-            #'Hot' | 'Blackbody' | 'Earth' | 'Electric' | 'Viridis' |
-            #colorscale='YlGnBu',
-            #reversescale=True,
-            color= vertex_color,
-            size=20,
-            #colorbar=dict(
-            #    thickness=15,
-            #    title='Node Connections',
-            #    xanchor='left',
-            #    titleside='right'
-            #),  
-            line=dict(width=2)))
+        
+        
+        # check extra day in slider
+        if day >= tot:
+            day = tot
+        G = loc_nets[day]
 
 
-    fig = go.Figure(data=[edge_trace_gray, edge_trace_red, node_trace],
-                 layout=go.Layout(
-                    title='<br>Network Graph day '+ str(day),
-                    titlefont=dict(size=16),
-                    showlegend=False,
-                    hovermode='closest',
-                    margin=dict(b=20,l=5,r=5,t=40),
-                    annotations=[ dict(
-                        text="",
-                        showarrow=False,
-                        xref="paper", yref="paper",
-                        x=0.005, y=-0.002 ) ],
-                    xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                    yaxis=dict(showgrid=False, zeroline=False, showticklabels=False)))
-    config = {'displaylogo': False}
 
-    #fig.show(config=config)
+        # plotly graph 
+        colors = {'S':'#0000ff', 'E':'#ffa300', 'I':'#ff0000', 'D':'#000000', 'R':'#00ff00'}
+        vertex_color = [colors[status] for status in G.vs["agent_status"]]
+        
+        node_text = []
+        node_trace_x = []
+        node_trace_y = []
+
+        infected = [vertex.index for vertex in G.vs if vertex["agent_status"] == 'I']
+
+        #add a pos attribute to each node
+        for node in G.vs:
+            node_text.append('State: ' + str(node['agent_status']))
+            x, y = layout[node.index]
+            node_trace_x += tuple([x])
+            node_trace_y += tuple([y])
+
+        edge_trace_x = []
+        edge_trace_y = []
+        edge_trace_x_red = []
+        edge_trace_y_red = []
+
+
+        for edge in G.es:
+            x0, y0 = layout[edge.source]
+            x1, y1 = layout[edge.target]
+
+            if edge.source in infected or edge.target in infected:
+                edge_trace_x_red += tuple([x0, x1, None])
+                edge_trace_y_red += tuple([y0, y1, None])
+            else:
+                edge_trace_x += tuple([x0, x1, None])
+                edge_trace_y += tuple([y0, y1, None])
+                
+
+
+        edge_trace_gray = go.Scatter(
+            x=edge_trace_x,
+            y=edge_trace_y,
+            line=dict(width=0.3,color='#888'),
+            hoverinfo='none',
+            mode='lines')
+
+        edge_trace_red = go.Scatter(
+            x=edge_trace_x_red,
+            y=edge_trace_y_red,
+            line=dict(width=0.7,color='#ff0000'),
+            hoverinfo='none',
+            mode='lines')
+
+
+        node_trace = go.Scatter(
+            x= node_trace_x,
+            y= node_trace_y,
+            text= node_text,
+            mode='markers',
+            hoverinfo='text',
+            marker=dict(
+                #showscale=True,
+                # colorscale options
+                #'Greys' | 'YlGnBu' | 'Greens' | 'YlOrRd' | 'Bluered' | 'RdBu' |
+                #'Reds' | 'Blues' | 'Picnic' | 'Rainbow' | 'Portland' | 'Jet' |
+                #'Hot' | 'Blackbody' | 'Earth' | 'Electric' | 'Viridis' |
+                #colorscale='YlGnBu',
+                #reversescale=True,
+                color= vertex_color,
+                size=20,
+                #colorbar=dict(
+                #    thickness=15,
+                #    title='Node Connections',
+                #    xanchor='left',
+                #    titleside='right'
+                #),  
+                line=dict(width=2)))
+
+
+        fig = go.Figure(data=[edge_trace_gray, edge_trace_red, node_trace],
+                     layout=go.Layout(
+                        title='<br>Network Graph day '+ str(day),
+                        titlefont=dict(size=16),
+                        showlegend=False,
+                        hovermode='closest',
+                        margin=dict(b=20,l=5,r=5,t=40),
+                        annotations=[ dict(
+                            text="",
+                            showarrow=False,
+                            xref="paper", yref="paper",
+                            x=0.005, y=-0.002 ) ],
+                        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False)))
+        config = {'displaylogo': False}
+
+        #fig.show(config=config)
+        
+        # get current and prev images
+        if day > 0:
+            image_filename1 = Path('images/{}_sim'.format(current_file_name) + str(day -1)  + '.jpeg')
+            image_filename2 = Path('images/{}_sim'.format(current_file_name) + str(day)  + '.jpeg')
+            day_prev = day -1
+        else:
+            image_filename1 = Path('images/{}_sim0.jpeg'.format(current_file_name))
+            image_filename2 = Path('images/{}_sim0.jpeg'.format(current_file_name))
+            day_prev = 0
+
+
+        encoded_image1 = base64.b64encode(open(image_filename1, 'rb').read())
+        encoded_image2 = base64.b64encode(open(image_filename2, 'rb').read())
+        
+
+        # create graph for display images 
+        src_image1 = go.Figure()
+
+        # Constants
+        img_width = 500
+        img_height = 500
+        scale_factor = 0.7
+
+        # Add invisible scatter trace.
+        # This trace is added to help the autoresize logic work.
+        src_image1.add_trace(
+            go.Scatter(
+                x=[0, img_width * scale_factor],
+                y=[0, img_height * scale_factor],
+                mode="markers",
+                marker_opacity=0
+            )
+        )
+
+        # Configure axes
+        src_image1.update_xaxes(
+            visible=False,
+            range=[0, img_width * scale_factor]
+        )
+
+        src_image1.update_yaxes(
+            visible=False,
+            range=[0, img_height * scale_factor],
+            # the scaleanchor attribute ensures that the aspect ratio stays constant
+            scaleanchor="x"
+        )
+
+        # Add image
+        src_image1.add_layout_image(
+            dict(
+                x=0,
+                sizex=img_width * scale_factor,
+                y=img_height * scale_factor,
+                sizey=img_height * scale_factor,
+                xref="x",
+                yref="y",
+                opacity=1.0,
+                layer="below",
+                sizing="stretch",
+                source='data:image/png;base64,{}'.format(encoded_image1.decode()))
+        )
+
+        # Configure other layout
+        src_image1.layout.update(
+            width=img_width * scale_factor,
+            height=img_height * scale_factor,
+            margin={"l": 0, "r": 0, "t": 0, "b": 0},
+        )
+
+
+        src_image2 = go.Figure()
+
+        # Constants
+
+        # Add invisible scatter trace.
+        # This trace is added to help the autoresize logic work.
+        src_image2.add_trace(
+            go.Scatter(
+                x=[0, img_width * scale_factor],
+                y=[0, img_height * scale_factor],
+                mode="markers",
+                marker_opacity=0
+            )
+        )
+
+        # Configure axes
+        src_image2.update_xaxes(
+            visible=False,
+            range=[0, img_width * scale_factor]
+        )
+
+        src_image2.update_yaxes(
+            visible=False,
+            range=[0, img_height * scale_factor],
+            # the scaleanchor attribute ensures that the aspect ratio stays constant
+            scaleanchor="x"
+        )
+
+        # Add image
+        src_image2.add_layout_image(
+            dict(
+                x=0,
+                sizex=img_width * scale_factor,
+                y=img_height * scale_factor,
+                sizey=img_height * scale_factor,
+                xref="x",
+                yref="y",
+                opacity=1.0,
+                layer="below",
+                sizing="stretch",
+                source='data:image/png;base64,{}'.format(encoded_image2.decode()))
+        )
+
+        # Configure other layout
+        src_image2.update_layout(
+            width=img_width * scale_factor,
+            height=img_height * scale_factor,
+            margin={"l": 0, "r": 0, "t": 0, "b": 0},
+        )
+
+
+        
+        # graph current summary situation 
+
+        s = current_network_history[day]["S"]
+        e = current_network_history[day]["E"]
+        i = current_network_history[day]["I"]
+        r = current_network_history[day]["R"]
+        d = current_network_history[day]["D"]
+
+
+        current = {
+                'data': [
+                    {'x': [1], 'y': [s], 'type': 'bar', 'name': 'S', 'marker' : {'color': colors['S']}},
+                    {'x': [1], 'y': [e], 'type': 'bar', 'name': 'E', 'marker' : {'color': colors['E']}},
+                    {'x': [1], 'y': [i], 'type': 'bar', 'name': 'I', 'marker' : {'color': colors['I']}},
+                    {'x': [1], 'y': [r], 'type': 'bar', 'name': 'R', 'marker' : {'color': colors['R']}},
+                    {'x': [1], 'y': [d], 'type': 'bar', 'name': 'D','marker' : {'color': colors['D']}},
+                ],
+                'layout': {
+                    'title': 'Population summary at Day ' + str(day)
+                }
+        }
+
+        
+        # graph prev summary situation 
+        s = current_network_history[day_prev]["S"]
+        e = current_network_history[day_prev]["E"]
+        i = current_network_history[day_prev]["I"]
+        r = current_network_history[day_prev]["R"]
+        d = current_network_history[day_prev]["D"]
+
+        prev = {
+                'data': [
+                    {'x': [1], 'y': [s], 'type': 'bar', 'name': 'S', 'marker' : {'color': colors['S']}},
+                    {'x': [1], 'y': [e], 'type': 'bar', 'name': 'E', 'marker' : {'color': colors['E']}},
+                    {'x': [1], 'y': [i], 'type': 'bar', 'name': 'I', 'marker' : {'color': colors['I']}},
+                    {'x': [1], 'y': [r], 'type': 'bar', 'name': 'R', 'marker' : {'color': colors['R']}},
+                    {'x': [1], 'y': [d], 'type': 'bar', 'name': 'D','marker' : {'color': colors['D']}},
+                ],
+                'layout': {
+                    'title': 'Population summary at Day ' + str(day_prev)
+                }
+        }
+
+        if save_pdf == True:
+            fig.write_image("graph.pdf")
+            prevFig = go.Figure(prev)
+            prevFig.write_image("prev.pdf")
+            currentFig = go.Figure(current)
+            currentFig.write_image("current.pdf")
+
+        return [fig, [], src_image1, src_image2, prev, current, net_layout.Get_Grid_Div(app, "cyto_" + str(day) + "_" + current_nets.strip(), net_layout.create_network_data(G))] 
     
-    # get current and prev images
-    if day > 0:
-        image_filename1 = Path('images/{}_sim'.format(current_file_name) + str(day -1)  + '.jpeg')
-        image_filename2 = Path('images/{}_sim'.format(current_file_name) + str(day)  + '.jpeg')
-        day_prev = day -1
     else:
-        image_filename1 = Path('images/{}_sim0.jpeg'.format(current_file_name))
-        image_filename2 = Path('images/{}_sim0.jpeg'.format(current_file_name))
-        day_prev = 0
-
-
-    encoded_image1 = base64.b64encode(open(image_filename1, 'rb').read())
-    encoded_image2 = base64.b64encode(open(image_filename2, 'rb').read())
+        return [{}, [], {}, {}, {}, {}, []] 
     
-
-    # create graph for display images 
-    src_image1 = go.Figure()
-
-    # Constants
-    img_width = 500
-    img_height = 500
-    scale_factor = 0.7
-
-    # Add invisible scatter trace.
-    # This trace is added to help the autoresize logic work.
-    src_image1.add_trace(
-        go.Scatter(
-            x=[0, img_width * scale_factor],
-            y=[0, img_height * scale_factor],
-            mode="markers",
-            marker_opacity=0
-        )
-    )
-
-    # Configure axes
-    src_image1.update_xaxes(
-        visible=False,
-        range=[0, img_width * scale_factor]
-    )
-
-    src_image1.update_yaxes(
-        visible=False,
-        range=[0, img_height * scale_factor],
-        # the scaleanchor attribute ensures that the aspect ratio stays constant
-        scaleanchor="x"
-    )
-
-    # Add image
-    src_image1.add_layout_image(
-        dict(
-            x=0,
-            sizex=img_width * scale_factor,
-            y=img_height * scale_factor,
-            sizey=img_height * scale_factor,
-            xref="x",
-            yref="y",
-            opacity=1.0,
-            layer="below",
-            sizing="stretch",
-            source='data:image/png;base64,{}'.format(encoded_image1.decode()))
-    )
-
-    # Configure other layout
-    src_image1.layout.update(
-        width=img_width * scale_factor,
-        height=img_height * scale_factor,
-        margin={"l": 0, "r": 0, "t": 0, "b": 0},
-    )
-
-
-    src_image2 = go.Figure()
-
-    # Constants
-
-    # Add invisible scatter trace.
-    # This trace is added to help the autoresize logic work.
-    src_image2.add_trace(
-        go.Scatter(
-            x=[0, img_width * scale_factor],
-            y=[0, img_height * scale_factor],
-            mode="markers",
-            marker_opacity=0
-        )
-    )
-
-    # Configure axes
-    src_image2.update_xaxes(
-        visible=False,
-        range=[0, img_width * scale_factor]
-    )
-
-    src_image2.update_yaxes(
-        visible=False,
-        range=[0, img_height * scale_factor],
-        # the scaleanchor attribute ensures that the aspect ratio stays constant
-        scaleanchor="x"
-    )
-
-    # Add image
-    src_image2.add_layout_image(
-        dict(
-            x=0,
-            sizex=img_width * scale_factor,
-            y=img_height * scale_factor,
-            sizey=img_height * scale_factor,
-            xref="x",
-            yref="y",
-            opacity=1.0,
-            layer="below",
-            sizing="stretch",
-            source='data:image/png;base64,{}'.format(encoded_image2.decode()))
-    )
-
-    # Configure other layout
-    src_image2.update_layout(
-        width=img_width * scale_factor,
-        height=img_height * scale_factor,
-        margin={"l": 0, "r": 0, "t": 0, "b": 0},
-    )
-
-
-    
-    # graph current summary situation 
-
-    s = current_network_history[day]["S"]
-    e = current_network_history[day]["E"]
-    i = current_network_history[day]["I"]
-    r = current_network_history[day]["R"]
-    d = current_network_history[day]["D"]
-
-
-    current = {
-            'data': [
-                {'x': [1], 'y': [s], 'type': 'bar', 'name': 'S', 'marker' : {'color': colors['S']}},
-                {'x': [1], 'y': [e], 'type': 'bar', 'name': 'E', 'marker' : {'color': colors['E']}},
-                {'x': [1], 'y': [i], 'type': 'bar', 'name': 'I', 'marker' : {'color': colors['I']}},
-                {'x': [1], 'y': [r], 'type': 'bar', 'name': 'R', 'marker' : {'color': colors['R']}},
-                {'x': [1], 'y': [d], 'type': 'bar', 'name': 'D','marker' : {'color': colors['D']}},
-            ],
-            'layout': {
-                'title': 'Population summary at Day ' + str(day)
-            }
-    }
-
-    
-    # graph prev summary situation 
-    s = current_network_history[day_prev]["S"]
-    e = current_network_history[day_prev]["E"]
-    i = current_network_history[day_prev]["I"]
-    r = current_network_history[day_prev]["R"]
-    d = current_network_history[day_prev]["D"]
-
-    prev = {
-            'data': [
-                {'x': [1], 'y': [s], 'type': 'bar', 'name': 'S', 'marker' : {'color': colors['S']}},
-                {'x': [1], 'y': [e], 'type': 'bar', 'name': 'E', 'marker' : {'color': colors['E']}},
-                {'x': [1], 'y': [i], 'type': 'bar', 'name': 'I', 'marker' : {'color': colors['I']}},
-                {'x': [1], 'y': [r], 'type': 'bar', 'name': 'R', 'marker' : {'color': colors['R']}},
-                {'x': [1], 'y': [d], 'type': 'bar', 'name': 'D','marker' : {'color': colors['D']}},
-            ],
-            'layout': {
-                'title': 'Population summary at Day ' + str(day_prev)
-            }
-    }
-
-    if save_pdf == True:
-        fig.write_image("graph.pdf")
-        prevFig = go.Figure(prev)
-        prevFig.write_image("prev.pdf")
-        currentFig = go.Figure(current)
-        currentFig.write_image("current.pdf")
-
-    return [fig, [], src_image1, src_image2, prev, current, net_layout.Get_Grid_Div(app, "cyto_" + str(day) + "_" + current_nets.strip(), net_layout.create_network_data(G))] 
-
+        
 
 # load curretnt image simulation according to slider value 
 @app.callback([Output("simulation_image_trend","figure")], [Input("slider_day_sim_trend", "value"), Input("day_sim", "max")])
@@ -915,54 +982,58 @@ def return_img(slider_day_sim_trend, new_max):
         plotly figure that show the simulaton at the current day
     """
 
-    if slider_day_sim_trend > new_max:
-        slider_day_sim_trend = new_max
-
-    RANGE = [0, 1]
-    day = int(slider_day_sim_trend)
-    file_name = networks_dictionary[current_nets]
-    image_filename = Path('images/{}_sim'.format(file_name) + str(day)  + '.jpeg')
-
     
-    encoded_image = base64.b64encode(open(image_filename, 'rb').read())
+    if current_nets != "":
+        if slider_day_sim_trend > new_max:
+            slider_day_sim_trend = new_max
 
-    return [{'data':[], 
-    'layout': {
-                'xaxis': {
-                    'range': RANGE,
-                    'showgrid':False,
-                    'zeroline': False,
-                    'showline': False,
-                    'ticks': '',
-                    'showticklabels': False,
-                },
-                'yaxis': {
-                    'range': RANGE,
-                    'scaleanchor': 'x',
-                    'scaleratio': 1,
-                    'zeroline': False,
-                    'showgrid':False,
-                   'showline': False,
-                                       'ticks': '',
-                    'showticklabels': False,
-                },
-                'height': 500,
-                'images': [{
-                    'xref': 'x',
-                    'yref': 'y',
-                    'x': RANGE[0],
-                    'y': RANGE[1],
-                    'sizex': RANGE[1] - RANGE[0],
-                    'sizey': RANGE[1] - RANGE[0],
-                    'sizing': 'stretch',
-                    'layer': 'below',
-                    'source': 'data:image/png;base64,{}'.format(encoded_image.decode())
-                }],
-                
-                
-                }
-    }
-                ]
+        RANGE = [0, 1]
+        day = int(slider_day_sim_trend)
+        file_name = networks_dictionary[current_nets]
+        image_filename = Path('images/{}_sim'.format(file_name) + str(day)  + '.jpeg')
+
+        
+        encoded_image = base64.b64encode(open(image_filename, 'rb').read())
+
+        return [{'data':[], 
+        'layout': {
+                    'xaxis': {
+                        'range': RANGE,
+                        'showgrid':False,
+                        'zeroline': False,
+                        'showline': False,
+                        'ticks': '',
+                        'showticklabels': False,
+                    },
+                    'yaxis': {
+                        'range': RANGE,
+                        'scaleanchor': 'x',
+                        'scaleratio': 1,
+                        'zeroline': False,
+                        'showgrid':False,
+                       'showline': False,
+                                           'ticks': '',
+                        'showticklabels': False,
+                    },
+                    'height': 500,
+                    'images': [{
+                        'xref': 'x',
+                        'yref': 'y',
+                        'x': RANGE[0],
+                        'y': RANGE[1],
+                        'sizex': RANGE[1] - RANGE[0],
+                        'sizey': RANGE[1] - RANGE[0],
+                        'sizing': 'stretch',
+                        'layer': 'below',
+                        'source': 'data:image/png;base64,{}'.format(encoded_image.decode())
+                    }],
+                    
+                    
+                    }
+        }
+        ]
+    else:
+        return [{}]
 
 
 #show the simulaton until the current simualtion day
@@ -985,44 +1056,49 @@ def update_plot_simulation_trend(day, new_max):
     outputs: simulation_image_trend (figure)
         plotly figure that show the simulaton until the current simualtion day
     """
+
+
+
     global current_network_history
+    if current_nets != "":
+        if day > tot:
+            day = tot
 
-    if day > tot:
-        day = tot
+        x_axis = []
+        y_S = []
+        y_E = []
+        y_I = []
+        y_R = []
+        y_D = []
 
-    x_axis = []
-    y_S = []
-    y_E = []
-    y_I = []
-    y_R = []
-    y_D = []
+        for i in range(day):
+            x_axis.append(i)
+            y_S.append(current_network_history[i]["S"])
+            y_E.append(current_network_history[i]["E"])
+            y_I.append(current_network_history[i]["I"])
+            y_R.append(current_network_history[i]["R"])
+            y_D.append(current_network_history[i]["D"])
 
-    for i in range(day):
-        x_axis.append(i)
-        y_S.append(current_network_history[i]["S"])
-        y_E.append(current_network_history[i]["E"])
-        y_I.append(current_network_history[i]["I"])
-        y_R.append(current_network_history[i]["R"])
-        y_D.append(current_network_history[i]["D"])
-
-    graph = {'data': [
-                    {'x': x_axis, 'y': y_S, 'type': 'line', 'name': 'S', 'marker' : {'color': '#0000ff'}},
-                    {'x': x_axis, 'y': y_E, 'type': 'line', 'name': 'E', 'marker' : {'color': '#ffa300'}},
-                    {'x': x_axis, 'y': y_I, 'type': 'line', 'name': 'I', 'marker' : {'color': '#ff0000'}},
-                    {'x': x_axis, 'y': y_R, 'type': 'line', 'name': 'R', 'marker' : {'color': '#00ff00'}},
-                    {'x': x_axis, 'y': y_D, 'type': 'line', 'name': 'D','marker' : {'color': '#000000'}},
-                ],
-                'layout': {
-                    'title': 'Lineplot associated with the network of the day ' + str(day) 
+        graph = {'data': [
+                        {'x': x_axis, 'y': y_S, 'type': 'line', 'name': 'S', 'marker' : {'color': '#0000ff'}},
+                        {'x': x_axis, 'y': y_E, 'type': 'line', 'name': 'E', 'marker' : {'color': '#ffa300'}},
+                        {'x': x_axis, 'y': y_I, 'type': 'line', 'name': 'I', 'marker' : {'color': '#ff0000'}},
+                        {'x': x_axis, 'y': y_R, 'type': 'line', 'name': 'R', 'marker' : {'color': '#00ff00'}},
+                        {'x': x_axis, 'y': y_D, 'type': 'line', 'name': 'D','marker' : {'color': '#000000'}},
+                    ],
+                    'layout': {
+                        'title': 'Lineplot associated with the network of the day ' + str(day) 
+                    }
                 }
-            }
-    
-    marks = {
-            0: {'label': '0'},
-            tot: {'label': str(tot)}
-    }
+        
+        marks = {
+                0: {'label': '0'},
+                tot: {'label': str(tot)}
+        }
 
-    return [graph, tot, marks]
+        return [graph, tot, marks]
+    else:
+        return [{}, 0, {}]
 
 
 
@@ -1363,11 +1439,6 @@ def create_all_graphs(dict_upload_files, save_pdf = True):
         ))
 
         stack_bar.update_layout(barmode='stack', title = 'Summary at the end of simulations')
-
-        #print("stack_bar")
-        #stack_bar.write_image("test.png")
-        #stack_bar.write_image("test.pdf")
-        #print("fine stack_bar")
 
         
         otuputs = [graph_infected, graph_dead, graph_tot_inf, graph_simulation_len, heatMap, scatter_dead, stack_bar]
