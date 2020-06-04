@@ -66,6 +66,8 @@ layout = []
 current_network_history = {}
 grid = []
 
+gitlink = "https://gitlab.com/migliouni/ctns_visualizer"
+
 # app layout
 app = dash.Dash(external_stylesheets=[dbc.themes.BOOTSTRAP])
 
@@ -90,6 +92,13 @@ tab1_content = dbc.Container(
             dbc.Row([
                 dbc.Col([
                     html.H1("Network evolution"),
+                    dbc.Alert(
+                        [
+                            "This is a light version only for demo. Full code without limitation is available at:  ",
+                            html.A("link code on git", href=gitlink, className="alert-link"),
+                        ],
+                        color="warning",
+                    ),
                     html.Hr(),
                     html.Br(),
                     html.P('Nodes in the network fall into one of five exclusive states:'),
