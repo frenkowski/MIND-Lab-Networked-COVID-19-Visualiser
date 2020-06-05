@@ -95,7 +95,7 @@ tab1_content = dbc.Container(
                     dbc.Alert(
                         [
                             "This is a light version only for demo. Full code without limitation is available at:  ",
-                            html.A("link code on git", href=gitlink, className="alert-link"),
+                            html.A("here clikkabile", href=gitlink, className="alert-link"),
                         ],
                         color="warning",
                     ),
@@ -291,8 +291,8 @@ tab1_content = dbc.Container(
                     html.Br(),
                     dbc.Spinner(html.Div(id='div_spin_tab3'), color="primary"),
 
-                    dcc.Graph(id="graph_evolution_sim", style={'display': 'block'}),
-                    dcc.Graph(id="simulation_image_trend", style={'display': 'block'}),
+                    dbc.Spinner(dcc.Graph(id="graph_evolution_sim", style={'display': 'block'}), color="primary"),
+                    dbc.Spinner(dcc.Graph(id="simulation_image_trend", style={'display': 'block'}), color="primary"),
                 ], md=12),
                 html.Div(style={'margin-top': '600px'}), 
                 ]),
@@ -383,8 +383,54 @@ app.layout = dbc.Container(
 
 #-------- callback tab1 -------------
 
+@app.callback([Output("network_id", "options"), Output("network_id", "value"), Output("read_alert", "children"), Output("noFiles", "children"), Output("slider_day_sim_trend", "value")], [Input("refresh", "n_clicks")])
+def refresh_button_click(n_clicks):
+
+    print("refresh_button_click(n_clicks) ", n_clicks)
+
+    
+    global current_nets, networks_dictionary, layout, tot, current_network_history, nets
+    
+    networks_dictionary, current_nets, errors = read_available_dumps()
+
+    if len(errors) > 0:
+        read_alert = dbc.Alert("Can't read this files: " + str(errors) + "\n use only full dump type for this tab" ,  color="danger",  duration=6000)
+    else:
+        read_alert = dbc.Alert("Succesfully read all files" , id = 'alert_id', color="success",  duration=6000)
+            
+
+    if current_nets != "":
+        fp_in = Path("network_dumps/{}.pickle".format(networks_dictionary[current_nets]))
+        nets = list()
+        with open(fp_in, "rb") as f:
+            dump = pickle.load(f)
+            nets = dump['nets']
+
+
+        history_path = "assets/network_history_{}.pickle".format(networks_dictionary[current_nets])
+
+        with open(history_path, "rb") as f:
+            current_network_history = pickle.load(f)
+
+        tot = len(current_network_history) - 1
+
+        # fix position of nodes for plotting
+        layout = nets[0].layout("large")
+        grid = net_layout.Get_Grid_Div(app, "cyto_1", net_layout.create_network_data(nets[0]))
+        bigErrorAlert = []
+
+    else:
+        tot = 0
+        grid = []
+        bigErrorAlert = dbc.Alert("No simulation accessible, put the full dumps in the \"network_dumps\" folder and use the create_images module then run this app",  color="danger")
+
+    new_options = [{"label": col, "value": col} for col in networks_dictionary.keys()]
+    return [new_options, current_nets,read_alert, bigErrorAlert, tot]
+
+
+
 # update  page content with the selected network id
-@app.callback([Output("gif_id","children"), Output("gif_id_inf","children"), Output("stats", "children"), Output("day_sim", "max"), Output("day_sim", "marks"), ], [Input("network_id", "value")], [State("day_sim", "value")])
+@app.callback([Output("gif_id","children"), Output("gif_id_inf","children"), Output("stats", "children"), Output("day_sim", "max"), Output("day_sim", "marks")], [Input("network_id", "value")], [State("day_sim", "value")])
 def update_page_content(network_id, day_sim_current_value):
     """
     Update the page content when a new network is selected. This callback update also the slider max value with the new simulation duration.
@@ -406,9 +452,13 @@ def update_page_content(network_id, day_sim_current_value):
     """
     # gloabal variables for handle click forward and back button
 
+    print("update_page_content(network_id) ", network_id)
+    print("update_page_content(day_sim_current_value) ", day_sim_current_value)
+
+
     global current_nets, networks_dictionary, nets, tot, layout, current_network_history
     
-    if current_nets != "":
+    if current_nets != "" and network_id != "":
         #reload curent network
         file_name = networks_dictionary[network_id]
         if current_nets != network_id:
@@ -521,6 +571,9 @@ def enable__disable_buttons(sim_day, network_id):
         [backDisabled, ForwardDisabled] if True the specif button is disable if True is clickable 
 
     """
+
+    print("enable__disable_buttons(sim_day) ", sim_day)
+    print("enable__disable_buttons(network_id) ", network_id)
     
     if current_nets != "":
         current_file_name = networks_dictionary[network_id]
@@ -541,57 +594,15 @@ def enable__disable_buttons(sim_day, network_id):
     else:
         return [False, False]
 
-@app.callback([Output("network_id", "options"), Output("network_id", "value"),Output("read_alert", "children"), Output("noFiles", "children"), Output("slider_day_sim_trend", "value")], [Input("refresh", "n_clicks")])
-def refresh_button_click(n_clicks):
 
-    
-    global current_nets, networks_dictionary, layout, tot, current_network_history, nets
-    
-    networks_dictionary, current_nets, errors = read_available_dumps()
-
-    if len(errors) > 0:
-        read_alert = dbc.Alert("Can't read this files: " + str(errors) + "\n use only full dump type for this tab" ,  color="danger",  duration=6000)
-    else:
-        read_alert = dbc.Alert("Succesfully read all files" , id = 'alert_id', color="success",  duration=6000)
-            
-
-    if current_nets != "":
-        #image_filename1 = Path('images/{}_sim0.jpeg'.format(networks_dictionary[current_nets]))
-        #image_filename2 = Path('images/{}_sim1.jpeg'.format(networks_dictionary[current_nets]))
-        #encoded_image1 = base64.b64encode(open(image_filename1, 'rb').read())
-        #encoded_image2 = base64.b64encode(open(image_filename2, 'rb').read())
-
-
-        fp_in = Path("network_dumps/{}.pickle".format(networks_dictionary[current_nets]))
-        nets = list()
-        with open(fp_in, "rb") as f:
-            dump = pickle.load(f)
-            nets = dump['nets']
-
-
-        history_path = "assets/network_history_{}.pickle".format(networks_dictionary[current_nets])
-
-        with open(history_path, "rb") as f:
-            current_network_history = pickle.load(f)
-
-        tot = len(current_network_history) - 1
-
-        # fix position of nodes for plotting
-        layout = nets[0].layout("large")
-        grid = net_layout.Get_Grid_Div(app, "cyto_1", net_layout.create_network_data(nets[0]))
-        bigErrorAlert = []
-
-    else:
-        tot = 0
-        grid = []
-        bigErrorAlert = dbc.Alert("No simulation accessible, put the full dumps in the \"network_dumps\" folder and use the create_images module then run this app",  color="danger")
-
-    new_options = [{"label": col, "value": col} for col in networks_dictionary.keys()]
-    return [new_options, current_nets,read_alert, bigErrorAlert, tot]
 
 
 @app.callback(Output("day_sim", "value"), [Input("back", "n_clicks"), Input("forward", "n_clicks")], [State("day_sim", "value")])
 def update_slider(currentClickBack, currentClickForward,  day_sim):
+
+    print("update_slider(currentClickBack) ", currentClickBack)
+    print("update_slider(currentClickForward) ", currentClickForward)
+    print("update_slider(day_sim) ", day_sim)
     """
     Update the slderbar when button forward or back is clicked
     
@@ -665,6 +676,10 @@ def update_graphics(day, network_id):
     """
 
     #global layout, tot, current_nets, 
+
+    print("update_graphics(day) ", day)
+    print("update_graphics(network_id) ", network_id)
+
     global networks_dictionary
 
     if current_nets != "":
