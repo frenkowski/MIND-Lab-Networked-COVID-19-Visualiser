@@ -50,7 +50,6 @@ def read_available_dumps():
                 error_read.append(file)
                 continue
                 
-    # net to load at first launch
     return networks_dictionary, current_nets, error_read
 
 
@@ -310,6 +309,13 @@ tab1_content = dbc.Container(
 tab2_content = dbc.Container([
         html.H1("Analysis simulation results"),
         html.Hr(),
+        dbc.Alert(
+                        [
+                            "This is a light version only for demo. Full code without limitation is available at:  ",
+                            html.A("here clikkabile", href=gitlink, className="alert-link"),
+                        ],
+                        color="warning",
+                    ),
         dcc.Upload(
             id='upload-data',
             children=html.Div([
