@@ -169,6 +169,7 @@ def Get_Grid_Div(app, id, elements = []):
         )
     ], id='container')
     if public_callback is None:
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! PIPPO !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
         public_callback = register_callback(app)
     return htmlDiv
 
@@ -188,6 +189,7 @@ def register_callback(app):
                    Input('dropdown-layout', 'value')
                    ])
     def displayTapNodeData(selected, all_elements, layout):
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Pluto !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
         global lastNode
         user_click = dash.callback_context.triggered[0]['prop_id'].split('.')[0]
         stylesheet = default_stylesheet[:] #default_stylesheet copy for a new css rules set
