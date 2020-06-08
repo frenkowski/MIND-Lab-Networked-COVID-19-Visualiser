@@ -3,7 +3,7 @@ import dash_html_components as html
 from dash.dependencies import Input, Output
 import dash_bootstrap_components as dbc
 
-from src.app import app
+from src.app import app, server
 from src.layouts import tab1_content, tab2_content
 import src.callbacks
 
