@@ -11,6 +11,8 @@ modelParam = ["Susceptible, nodes that are not yet infected",
               "Recovered, people recovered from the disease, these individuals are immune to the infection", 
               "Dead, nodes not survivor at the disease"]
 
+gitlink = "https://gitlab.com/migliouni/ctns_visualizer"
+
 tab1_content = dbc.Container(
         [
         html.Div(style = {'margin-top': '30px'}),
@@ -20,6 +22,13 @@ tab1_content = dbc.Container(
             dbc.Row([
                 dbc.Col([
                     html.H1("Network evolution"),
+                    dbc.Alert(
+                        [
+                            "This is a light version only for demo. Full code without limitation is available at:  ",
+                            html.A("here clikkabile", href=gitlink, className="alert-link"),
+                        ],
+                        color="warning",
+                    ),
                     html.Hr(),
                     html.Br(),
                     html.P('Nodes in the network fall into one of five exclusive states:'),
@@ -239,6 +248,13 @@ tab1_content = dbc.Container(
 
 tab2_content = dbc.Container([
         html.H1("Analysis simulation results"),
+        dbc.Alert(
+                        [
+                            "This is a light version only for demo. Full code without limitation is available at:  ",
+                            html.A("here clikkabile", href=gitlink, className="alert-link"),
+                        ],
+                        color="warning",
+                    ),
         html.Hr(),
         dcc.Upload(
             id='upload-data',
