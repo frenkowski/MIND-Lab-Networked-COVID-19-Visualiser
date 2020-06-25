@@ -1,1 +1,1 @@
-# MIND-Lab-Networked-COVID-19-Visualizator
+# MIND-Lab-Networked-COVID-19-Visualiser
